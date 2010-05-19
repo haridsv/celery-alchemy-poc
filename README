@@ -3,5 +3,6 @@ A Proof-Of-Concept for using a database backend with celery via SQLAlchemy. Test
 To try,
 - pull the repo
 - modify the alchemy_backend.py to use the right connection information
+- run try_init.py to initialize the database tables
 - start celeryd (e.g., "PYTHONPATH=. celeryd")
 - run try_celery.py
