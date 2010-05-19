@@ -1,0 +1,7 @@
+A Proof-Of-Concept for using a database backend with celery via SQLAlchemy. Tested only with SQL Server (on linux using pyodbc/unixODBC/FreeTDS) on linux. The model doesn't work with sqlite.
+
+To try,
+- pull the repo
+- modify the alchemy_backend.py to use the right connection information
+- start celeryd (e.g., "PYTHONPATH=. celeryd")
+- run try_celery.py
