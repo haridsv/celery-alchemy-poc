@@ -3,23 +3,26 @@ import datetime
 
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
+from celery import states
 from celery.backends.base import BaseDictBackend
 from ghettoq.backends.base import BaseBackend
 from ghettoq.taproot import MultiBackend
 
-from alchemy_models import Task, TaskSet, Queue, Message
+from alchemy_models import Task, TaskSet, Queue, Message, metadata
 
-server = '<sql server host>'
-database = '<your db>'
-userid = '<your user>'
-password = '<your password>'
-port = 1433
-raw_cs = "DRIVER={FreeTDS};SERVER=%s;PORT=%d;DATABASE=%s;UID=%s;PWD=%s;CHARSET=UTF8;TDS_VERSION=8.0;TEXTSIZE=10000" % (server, port, database, userid, password)
-connection_string = "mssql:///?odbc_connect=%s" % urllib.quote_plus(raw_cs)
+#server = '<sql server host>'
+#database = '<your db>'
+#userid = '<your user>'
+#password = '<your password>'
+#port = 1433
+#raw_cs = "DRIVER={FreeTDS};SERVER=%s;PORT=%d;DATABASE=%s;UID=%s;PWD=%s;CHARSET=UTF8;TDS_VERSION=8.0;TEXTSIZE=10000" % (server, port, database, userid, password)
+#connection_string = "mssql:///?odbc_connect=%s" % urllib.quote_plus(raw_cs)
 #connection_string = 'sqlite:////mnt/winctmp/celery.db'
-#connection_string = 'sqlite:///celery.db'
+connection_string = 'sqlite:///celery.db'
 engine = sqlalchemy.create_engine(connection_string, echo=True)
 Session = sessionmaker(bind=engine)
+
+metadata.create_all(engine)
 
 class CeleryBackend(BaseDictBackend):
     """The database backends. Using Django models to store task metadata."""
@@ -30,10 +33,15 @@ class CeleryBackend(BaseDictBackend):
         try:
             tasks = session.query(Task).filter(Task.task_id == task_id).all()
             if not tasks:
-                raise RuntimeError('Task with task_id: %s not found' % task_id)
-            tasks[0].result = result
-            tasks[0].status = status
-            tasks[0].traceback = traceback
+                task = Task(task_id)
+                session.add(task)
+            else:
+                task = tasks[0]
+            task.result = result
+            task.status = status
+            task.traceback = traceback
+            if task.status == states.STARTED:
+                task.date_began = datetime.now()
             session.commit()
         finally:
             session.close()

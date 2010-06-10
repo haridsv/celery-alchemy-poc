@@ -1,32 +1,35 @@
 import datetime
 
 from sqlalchemy import Column, Integer, String, Text, BigInteger, DateTime, \
-        PickleType, Sequence, Boolean, CheckConstraint, ForeignKey
+        PickleType, Sequence, Boolean, CheckConstraint, ForeignKey, SmallInteger
 from sqlalchemy.orm import relation
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.schema import MetaData
 from celery import states
 
-ModelBase = declarative_base()
+metadata = MetaData()
+ModelBase = declarative_base(metadata=metadata)
 
 class Task(ModelBase):
     """Task result/status."""
     __tablename__ = 'celery_taskmeta'
+    __table_args__ = {"sqlite_autoincrement": True}
 
-    id        = Column("id", Integer, Sequence('task_id_sequence'), primary_key=True)
-    task_id   = Column('task_id', String(255), primary_key = True)
-    status    = Column('status',
-                       String(50),
-                       CheckConstraint("status in (%s)"
-                                       % ', '.join(["'%s'" % state
-                                                    for state in states.ALL_STATES])),
-                       default = states.PENDING)
-    result    = Column('result', PickleType, nullable=True)
-    date_done = Column('date_done', DateTime, onupdate = datetime.datetime.now, nullable=True)
-    traceback = Column('traceback', Text, nullable=True)
+    id         = Column(Integer, Sequence('task_id_sequence'), primary_key=True,
+                        autoincrement=True)
+    task_id    = Column(String(255))
+    status     = Column(String(50),
+                        CheckConstraint("status in (%s)"
+                                        % ', '.join(["'%s'" % state
+                                                     for state in states.ALL_STATES])),
+                        default = states.PENDING)
+    result     = Column(PickleType, nullable=True)
+    date_began = Column(DateTime, nullable=True)
+    date_done  = Column(DateTime, onupdate = datetime.datetime.now, nullable=True)
+    traceback  = Column(Text, nullable=True)
 
     def __init__(self, task_id):
         self.task_id = task_id
-        #self.result = ''
 
     def __str__(self):
         return "<Task(%s, %s, %s, %s)>" % (self.task_id, self.result, self.status, self.traceback)
@@ -44,11 +47,13 @@ class Task(ModelBase):
 class TaskSet(ModelBase):
     """TaskSet result"""
     __tablename__ = 'celery_tasksetmeta'
+    __table_args__ = {"sqlite_autoincrement": True}
 
-    id         = Column("id", Integer, Sequence('taskset_id_sequence'), primary_key=True)
-    taskset_id = Column('taskset_id', String(255), unique = True)
-    result     = Column('result', PickleType, nullable=True)
-    date_done = Column('date_done', DateTime, onupdate = datetime.datetime.now, nullable=True)
+    id         = Column(Integer, Sequence('taskset_id_sequence'), primary_key=True,
+                        autoincrement=True)
+    taskset_id = Column(String(255))
+    result     = Column(PickleType, nullable=True)
+    date_done  = Column(DateTime, default=datetime.datetime.now, nullable=True)
 
     def __init__(self, task_id):
         self.task_id = task_id
@@ -66,9 +71,11 @@ class TaskSet(ModelBase):
 
 class Queue(ModelBase):
     __tablename__ = 'ghettoq_queue'
+    __table_args__ = {"sqlite_autoincrement": True}
 
-    id       = Column("id", Integer, Sequence('queue_id_sequence'), primary_key=True)
-    name     = Column("name", String(200), unique=True)
+    id       = Column(Integer, Sequence('queue_id_sequence'), primary_key=True,
+                      autoincrement=True)
+    name     = Column(String(200), unique=True)
     messages = relation("Message", backref='queue', lazy='noload')
 
     def __init__(self, name):
@@ -79,13 +86,18 @@ class Queue(ModelBase):
 
 class Message(ModelBase):
     __tablename__ = 'ghettoq_message'
+    __table_args__ = {"sqlite_autoincrement": True}
 
-    id       = Column("id", Integer, Sequence('message_id_sequence'), primary_key=True)
-    visible  = Column("visible", Boolean, default=True, index=True)
+    id       = Column(Integer, Sequence('message_id_sequence'), primary_key=True,
+                      autoincrement=True)
+    visible  = Column(Boolean, default=True, index=True)
     sent_at  = Column('timestamp', DateTime, nullable=True, index=True,
                       onupdate = datetime.datetime.now)
-    payload  = Column("payload", Text, nullable=False)
-    queue_id = Column('queue_id', Integer, ForeignKey('ghettoq_queue.id', name='FK_qhettoq_message_queue'))
+    payload  = Column(Text, nullable=False)
+    queue_id = Column(SmallInteger, ForeignKey('ghettoq_queue.id', name='FK_qhettoq_message_queue'))
+    version  = Column(SmallInteger, nullable=False, default=1)
+
+    __mapper_args__ = {'version_id_col': version}
 
     def __init__(self, payload, queue):
         self.payload  = payload
